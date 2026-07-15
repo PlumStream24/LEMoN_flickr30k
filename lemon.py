@@ -18,12 +18,13 @@ from own.utils_metric import calc_scores_given_hparams_vectorized
 from own.utils_metric import optimize_f1_efficient
 from own.utils_metric import maximize_metric
 
+# --- Argument parsing ---
 parser = argparse.ArgumentParser(description="LEMoN")
 parser.add_argument('--knn_k', default = 5, type = int)
 parser.add_argument('--batch_size', default = 128, type = int)
 parser.add_argument("--dist_type", type=str, default="cosine", choices=["cosine", "euclidean"])
 parser.add_argument('--compr_dataset_size_limit', default = 50000, type = int)
-#parser.add_argument('--skip_train', action = 'store_true')
+parser.add_argument('--skip_train', action = 'store_true')
 #parser.add_argument('--skip_hparam_optim', action = 'store_true')
 
 args = parser.parse_args()
@@ -31,10 +32,12 @@ bs = args.batch_size
 k = args.knn_k
 dist_type = args.dist_type
 compr_dataset_size_limit = args.compr_dataset_size_limit
-skip_train = True
-#skip_train = args.skip_train
+#skip_train = True
+skip_train = args.skip_train
 #skip_hparam_optim = args.skip_hparam_optim
 
+
+# --- Load CLIP model and dataset ---
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 train_set, val_set, test_set = get_captioning_dataset(name = 'flickr30k', data_seed = 42, percent_flips = 0.3, flip_type = 'random', data_transform = None, cluster = False)
 
@@ -43,6 +46,7 @@ model = CLIPModel.from_pretrained('openai/clip-vit-base-patch32')
 model = model.to(device)
 model.eval()
 
+# --- Compress training set if too large ---
 if len(train_set) > compr_dataset_size_limit:
     train_indices_in_compr = np.random.choice(np.arange(len(train_set)), compr_dataset_size_limit, replace = False)
     compr_set = torch.utils.data.Subset(train_set, train_indices_in_compr)
@@ -52,6 +56,7 @@ else:
 
 dataloader = DataLoader(dataset=compr_set, batch_size=bs, num_workers=4)
 
+# --- Compute embeddings for training set ---
 start_t = datetime.now()
 emb_img, emb_txt, tr_text_labels = [], [], []
 for idx, batch in enumerate(dataloader):
@@ -71,6 +76,7 @@ for idx, batch in enumerate(dataloader):
 emb_txt_tr = normalize_vectors(torch.concat(emb_txt))
 emb_img_tr = normalize_vectors(torch.concat(emb_img))
 
+# --- Build FAISS indexes for nearest neighbor search ---
 if dist_type == 'cosine':
     index_txt = faiss.IndexFlatIP(emb_txt_tr.shape[1])
     index_img = faiss.IndexFlatIP(emb_img_tr.shape[1])
@@ -90,6 +96,10 @@ if skip_train:
 else:
     sets_iter = zip(['train', 'val', 'test'], [train_set, val_set, test_set])
 
+
+#########################
+### COMPUTE DISTANCES ###
+#########################
 for sname, dset in sets_iter:
     dataloader = DataLoader(
         dataset=dset, batch_size=bs, num_workers=4
@@ -106,19 +116,21 @@ for sname, dset in sets_iter:
         label_flips = np.array(noisy_text_labels)==np.array(clean_text_labels)
         label_flips = 1-label_flips
         
-        encodings = tokenizer(
-                noisy_text_labels_prompts, padding="max_length", truncation=True)
+        encodings = tokenizer(noisy_text_labels_prompts, padding="max_length", truncation=True)
         
         input_ids = torch.tensor(encodings["input_ids"]).to(device)
         attention_mask = torch.tensor(encodings["attention_mask"]).to(device)
 
+        ### --- Compute embeddings ---
         with torch.no_grad():
             text_embeds = normalize_vectors(model.get_text_features(input_ids, attention_mask))
             img_embeds = normalize_vectors(model.get_image_features(pixel_values))
 
+        ### --- Get k nearest neighbors ---
         D_ns, I_ns = index_img.search(img_embeds.numpy(), k + (sname == 'train'))
         D_ms, I_ms = index_txt.search(text_embeds.numpy(), k+ (sname == 'train'))
 
+        ### --- Compute distances and log ---
         for i in range(len(img_embeds)):
             sample_idx = idx * bs + i
             img_embed = img_embeds[i, None]
@@ -162,6 +174,7 @@ for sname, dset in sets_iter:
             elif dist_type == 'euclidean':
                 dists_m = ((img_embed - x_m)**2).sum(dim = 1)
 
+            #### --- Log sample calculations ---
             logs.append({
                 'sset': sname,
                 'idx': sample_idx,
@@ -185,8 +198,8 @@ timedelta = (end_t - start_t).total_seconds()
 n_samples = len(logs)
 print(f"Finished {n_samples} samples in {timedelta} seconds; avg of {timedelta/n_samples}s per sample")
 
+# --- Convert logs to dataframe ---
 df = pd.DataFrame(logs)
-
 df_val = df.query('sset == "val"')
 
 grid = {
@@ -215,7 +228,6 @@ hparams = {
     'tau_1_m': best_tau_1_m,
     'tau_2_m': best_tau_2_m,
 }
-# -----------------------------------------------
 
 # --- Apply fitted hyperparameters to classify every sample ---
 df['pred_score'], df['d_n'], df['d_m'] = calc_scores_given_hparams_vectorized(

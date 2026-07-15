@@ -7,6 +7,7 @@ from itertools import product
 from sklearn.metrics import f1_score
 from scipy.optimize import fminbound
 
+### --- Calculate scores = d1 + beta dn + gamma dm ---
 def calc_scores_given_hparams_vectorized(df, best_hparams, return_dn=False, torch_arr=False):
     if torch_arr:
         D_ns = torch.stack([torch.tensor(d) for d in df['D_n'].values])
@@ -57,12 +58,14 @@ def unpack_vector(x):
 def combinations_base(grid):
     return list(dict(zip(grid.keys(), values)) for values in product(*grid.values()))
 
+### Calculate score and return negative of objective function (e.g., F1 score) for optimization
 def optim_func(x, df, obj_func, obj_func_args):
     hparams = unpack_vector(x)
     y = df['is_mislabel'].values
     score = calc_scores_given_hparams_vectorized(df, hparams, return_dn = False)
     return -obj_func(y, score, **obj_func_args)
 
+### Search for the best threshold to maximize F1 score
 def optimize_f1_efficient(y, score, return_thres = False):
     def neg_f1(threshold):
         pred_label = score >= threshold
@@ -75,6 +78,7 @@ def optimize_f1_efficient(y, score, return_thres = False):
     else:
         return best_f1
 
+### Maximize over objective function (e.g., F1 score)
 def maximize_metric(df, grid, obj_func, obj_func_args):
     best_x, best_val = None, -1
 

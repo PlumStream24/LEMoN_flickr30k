@@ -11,9 +11,10 @@ from PIL import Image
 import pandas as pd
 import numpy as np
 
+### --- Static variables ---
 CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
 CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
-flickr30k_path = '/kaggle/input/datasets/hsankesara/flickr-image-dataset/flickr30k_images'
+flickr30k_path = '/flickr-image-dataset/flickr30k_images'
 generic_transform = transform = transforms.Compose(
     [
         transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC),
@@ -23,6 +24,7 @@ generic_transform = transform = transforms.Compose(
     ]
 )
 
+### Dataset class for captioning dataset
 class CaptioningDataset(Dataset):
     def __init__(self, df, transform, dataset_name, use_cluster):
         self.df = df
@@ -68,9 +70,9 @@ def build_index(arr):
         idx[i] = [c for c, sublist in enumerate(arr_set) if i in sublist]
     return idx   
 
+# Create dictionary mapping {image index: index of new label}
+# only for indices where the label is to be changed
 def calc_noise_by_integer_matching(cat_labels, frac_noise = 0.3, seed = 42):
-    # returns a dictionary mapping {image index: index of new label}
-    # only for indices where the label is to be changed
     index = build_index(cat_labels)
     rng = np.random.default_rng(seed)
     cand_idxs = np.arange(len(cat_labels)) 
@@ -86,6 +88,8 @@ def calc_noise_by_integer_matching(cat_labels, frac_noise = 0.3, seed = 42):
         if len(subset) > 0: 
             change_dict[i] = rng.choice(subset, 1)[0]
 
+# Make random noise dictionary mapping {index of sample: index of new label}
+# for a given fraction of the dataset.
 def random_noise_dict(num_items, frac_noise = 0.3, seed = 42):
     rng = np.random.default_rng(seed)
     to_change_idxs = rng.choice( np.arange(num_items), int(frac_noise * num_items),
@@ -96,21 +100,24 @@ def random_noise_dict(num_items, frac_noise = 0.3, seed = 42):
                                     , 1)[0]
     return change_dict
 
+# Make noise dataset by swapping labels according to a dictionary mapping {index of sample: index of new label}
 def noise_given_dict(meta, d):
     meta_c = meta.copy()
     meta_c['gold_sentence'] = meta_c['sentence']
+    #get indeces for noise
     source_idx = meta.index[list(d.keys())]
     target_idx = meta.index[list(d.values())]
-    # meta_c['is_mislabel'] = False
-    meta_c.loc[source_idx, 'sentence'] = meta.loc[target_idx, 'sentence'].values
-    # meta_c.loc[source_idx, 'is_mislabel'] = True ## can miss a couple due to same annot across samples
-    meta_c['is_mislabel'] = (meta_c['sentence'] != meta_c['gold_sentence'])
-    # print(len(source_idx) - meta_c['is_mislabel'].sum())
+
+    meta_c.loc[source_idx, 'sentence'] = meta.loc[target_idx, 'sentence'].values    #swap the sentences for the mislabelled samples
+    meta_c['is_mislabel'] = (meta_c['sentence'] != meta_c['gold_sentence'])         #set mislabel flag
+
     return meta_c
+
+
 
 def get_captioning_dataset(name, data_seed, percent_flips, flip_type, data_transform=None, cluster = False):
     assert 0 <= percent_flips <= 1
-    df = pd.read_pickle('/kaggle/working/multimodal_mislabel_split.pkl')
+    df = pd.read_pickle('multimodal_mislabel_split.pkl')
     if name == 'flickr30k':
         df['path'] = df.apply(lambda x: Path(flickr30k_path)/'flickr30k_images'/x['filename'], axis = 1)
 

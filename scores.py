@@ -21,5 +21,9 @@ papers_best_hparams = {
     'gamma': 0.177
     }
 
-df = pd.read_pickle('res.pkl')
-get_caption_scores(df['df'], args.idx)
+#df = pd.read_pickle('./dump/res.pkl')
+#get_caption_scores(df['df'], args.idx)
+#print(df['val_f1'])
+
+df = pd.read_pickle('./dump/multimodal_mislabel_split.pkl')
+print(df.nouns_int)
