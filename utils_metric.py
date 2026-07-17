@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from itertools import product
 
-from sklearn.metrics import f1_score
+from sklearn.metrics import accuracy_score, average_precision_score, balanced_accuracy_score, f1_score, roc_auc_score
 from scipy.optimize import fminbound
 
 ### --- Calculate scores = d1 + beta dn + gamma dm ---
@@ -101,3 +101,42 @@ def maximize_metric(df, grid, obj_func, obj_func_args):
 
     score = calc_scores_given_hparams_vectorized(df, unpack_vector(best_x))
     return best_x, best_val, obj_func(df['is_mislabel'], score, return_thres=True, **obj_func_args)[1]
+
+
+def eval_metrics(y, score, prevalence, fix_thres={}):
+    if 'F1_optimal_thres' in fix_thres:
+        f1_optim_thres = fix_thres['F1_optimal_thres']
+    else:
+        f1_optim, f1_optim_thres = optimize_f1_efficient(y, score, True)
+        
+    
+    return {**prob_metrics(y, score), **{
+        'F1_optimal_thres': f1_optim_thres
+        },
+        **binary_metrics(y, score >= f1_optim_thres, suffix = '_optimal'),
+    }
+
+def prob_metrics(targets, preds, sample_weight = None):
+    return {
+        'AUROC': roc_auc_score(targets, preds, sample_weight=sample_weight),
+        'AUPRC': average_precision_score(targets, preds, average='macro', sample_weight=sample_weight)
+    }
+
+def binary_metrics(targets, preds, label_set=[0, 1], suffix='', return_arrays=False):
+    if len(targets) == 0:
+        return {}
+
+    res = {
+        'accuracy': accuracy_score(targets, preds),
+        'F1': f1_score(targets, preds),
+        'n_samples': len(targets)
+    }
+
+    if len(np.unique(targets)) > 1:
+        res['balanced_acc'] = balanced_accuracy_score(targets, preds)
+
+    if return_arrays:
+        res['targets'] = targets
+        res['preds'] = preds
+
+    return {f"{i}{suffix}": res[i] for i in res}

@@ -12,11 +12,8 @@ import pandas as pd
 from transformers import AutoTokenizer, CLIPModel
 from torch.utils.data import DataLoader
 
-from own.utils_data import normalize_vectors
-from own.utils_data import get_captioning_dataset
-from own.utils_metric import calc_scores_given_hparams_vectorized
-from own.utils_metric import optimize_f1_efficient
-from own.utils_metric import maximize_metric
+from utils_data import normalize_vectors, get_captioning_dataset
+from utils_metric import calc_scores_given_hparams_vectorized, optimize_f1_efficient, maximize_metric, eval_metrics
 
 # --- Argument parsing ---
 parser = argparse.ArgumentParser(description="LEMoN")
@@ -210,6 +207,8 @@ grid = {
 }
 
 # --- Fit hyperparameters on validation set ---
+best_beta, best_gamma, best_tau_1_n, best_tau_2_n, best_tau_1_m, best_tau_2_m = [0] * 6
+best_f1, best_thres = optimize_f1_efficient(df_val['is_mislabel'], df_val['d_1'], return_thres = True)
 (best_beta, best_gamma, best_tau_1_n, best_tau_2_n, best_tau_1_m, best_tau_2_m), best_f1, best_thres = maximize_metric(
     df_val,
     grid,
@@ -223,10 +222,12 @@ grid = {
 hparams = {
     'beta': best_beta,
     'gamma': best_gamma,
+    'thres': best_thres,
     'tau_1_n': best_tau_1_n,
     'tau_2_n': best_tau_2_n,
     'tau_1_m': best_tau_1_m,
     'tau_2_m': best_tau_2_m,
+    'val_f1': best_f1
 }
 
 # --- Apply fitted hyperparameters to classify every sample ---
@@ -236,11 +237,21 @@ df['pred_score'], df['d_n'], df['d_m'] = calc_scores_given_hparams_vectorized(
 df['pred_mislabel'] = df['pred_score'] >= best_thres
 # ---------------------------------------------------------------
 
+# --- Eval ---
+df_val = df.query('sset == "val"')
+thress = eval_metrics(df_val['is_mislabel'], df_val[f'pred_score'], prevalence = df.loc[df.sset == 'val', 'is_mislabel'].sum()/(df.sset == 'val').sum())
+
+for sset in df.sset.unique():
+    sub_df = df.loc[df.sset == sset]
+    hparams[sset] = eval_metrics(sub_df['is_mislabel'], 
+                            sub_df[f'pred_score'], 
+                            prevalence = df.loc[df.sset == 'val', 'is_mislabel'].sum()/(df.sset == 'val').sum(),
+                            fix_thress = thress)
+df.to_csv(Path('scores.csv'), index = False)
+
 res = {
     'df': df,
     'hparams': hparams,
-    'thres': best_thres,
-    'val_f1': best_f1,
 }
 
 pickle.dump(res, Path('res.pkl').open('wb'))

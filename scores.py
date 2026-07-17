@@ -2,15 +2,18 @@ import pandas as pd
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--idx', type=int, default=2, help='Index of the caption to retrieve scores for')
+parser.add_argument('--idx', type=int, default=10, help='Index of the caption to retrieve scores for')
 args = parser.parse_args()
 
 def get_caption_scores(df, idx):
     print(f"Actual Caption : {df.loc[idx]['actual_label_text']}")
     print(f"Noisy Caption : {df.loc[idx]['noisy_label_text']}")
     print(f"Score: {df.loc[idx]['pred_score']}")
-    print(f"Mislabelled: {df.loc[idx]['pred_mislabel']}")
+    print(f"Mislabelled pred: {df.loc[idx]['pred_mislabel']}")
     return
+
+def get_params(hparams):
+    print(hparams)
 
 papers_best_hparams = {
     'tau_1_n': 0.274, 
@@ -21,9 +24,6 @@ papers_best_hparams = {
     'gamma': 0.177
     }
 
-#df = pd.read_pickle('./dump/res.pkl')
-#get_caption_scores(df['df'], args.idx)
-#print(df['val_f1'])
-
-df = pd.read_pickle('./dump/multimodal_mislabel_split.pkl')
-print(df.nouns_int)
+df = pd.read_pickle('./dump/res.pkl')
+get_caption_scores(df['df'], args.idx)
+get_params(df['hparams'])

@@ -1,6 +1,6 @@
 name: lemon
 dependencies:
 - python=3.9.7
-- pip
+- pip<24.1
 - pip:
     - -r requirements.txt

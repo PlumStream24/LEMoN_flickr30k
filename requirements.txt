@@ -15,10 +15,9 @@ netcal==1.3.5
 matplotlib>=2.2.2
 datasets==2.4.0
 tqdm
-numpy
 open_clip_torch
 git+https://github.com/openai/CLIP.git
-faiss-gpu
-spacy
-#en_core_web_trf @ https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.7.3/en_core_web_trf-3.7.3-py3-none-any.whl
-python -m spacy download en_core_web_trf
+faiss-cpu
+spacy==3.7.5
+en_core_web_trf @ https://github.com/explosion/spacy-models/releases/download/en_core_web_trf-3.7.3/en_core_web_trf-3.7.3-py3-none-any.whl
+#python -m spacy download en_core_web_trf
