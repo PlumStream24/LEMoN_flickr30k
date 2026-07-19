@@ -22,6 +22,8 @@ parser.add_argument('--batch_size', default = 128, type = int)
 parser.add_argument("--dist_type", type=str, default="cosine", choices=["cosine", "euclidean"])
 parser.add_argument('--compr_dataset_size_limit', default = 50000, type = int)
 parser.add_argument('--skip_train', action = 'store_true')
+parser.add_argument('--noise_type', type=str, default='noun', choices=['random', 'noun'])
+parser.add_argument('--noise_level', type=float, default=0.4)
 #parser.add_argument('--skip_hparam_optim', action = 'store_true')
 
 args = parser.parse_args()
@@ -29,14 +31,15 @@ bs = args.batch_size
 k = args.knn_k
 dist_type = args.dist_type
 compr_dataset_size_limit = args.compr_dataset_size_limit
-#skip_train = True
 skip_train = args.skip_train
+noise_type = args.noise_type
+noise_level = args.noise_level
 #skip_hparam_optim = args.skip_hparam_optim
 
 
 # --- Load CLIP model and dataset ---
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-train_set, val_set, test_set = get_captioning_dataset(name = 'flickr30k', data_seed = 42, percent_flips = 0.3, flip_type = 'random', data_transform = None, cluster = False)
+train_set, val_set, test_set = get_captioning_dataset(name = 'flickr30k', data_seed = 42, flip_type = noise_type, percent_flips = noise_level, data_transform = None, cluster = False)
 
 tokenizer = AutoTokenizer.from_pretrained('openai/clip-vit-base-patch32')
 model = CLIPModel.from_pretrained('openai/clip-vit-base-patch32')

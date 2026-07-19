@@ -87,10 +87,12 @@ def calc_noise_by_integer_matching(cat_labels, frac_noise = 0.3, seed = 42):
         subset = np.setdiff1d(subset, [i])
         if len(subset) > 0: 
             change_dict[i] = rng.choice(subset, 1)[0]
+    
+    return change_dict
 
 # Make random noise dictionary mapping {index of sample: index of new label}
 # for a given fraction of the dataset.
-def random_noise_dict(num_items, frac_noise = 0.3, seed = 42):
+def random_noise_dict(num_items, frac_noise = 0.4, seed = 42):
     rng = np.random.default_rng(seed)
     to_change_idxs = rng.choice( np.arange(num_items), int(frac_noise * num_items),
                                 replace = False)
@@ -115,7 +117,7 @@ def noise_given_dict(meta, d):
 
 
 
-def get_captioning_dataset(name, data_seed, percent_flips, flip_type, data_transform=None, cluster = False):
+def get_captioning_dataset(name, data_seed, percent_flips=0.4, flip_type='random', data_transform=None, cluster = False):
     assert 0 <= percent_flips <= 1
     df = pd.read_pickle('multimodal_mislabel_split.pkl')
     if name == 'flickr30k':
