@@ -14,7 +14,7 @@ import numpy as np
 ### --- Static variables ---
 CLIP_MEAN = [0.48145466, 0.4578275, 0.40821073]
 CLIP_STD = [0.26862954, 0.26130258, 0.27577711]
-flickr30k_path = '/flickr-image-dataset/flickr30k_images'
+flickr30k_path = './flickr30k_images'
 generic_transform = transform = transforms.Compose(
     [
         transforms.Resize(224, interpolation=transforms.InterpolationMode.BICUBIC),

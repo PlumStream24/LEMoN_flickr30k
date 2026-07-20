@@ -1,3 +1,7 @@
 /flickr30k_images
 /.venv
 /.vscode
+/__pycache__
+multimodal_mislabel_split.pkl
+res.pkl
+scores.csv
